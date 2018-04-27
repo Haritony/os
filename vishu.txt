@@ -1,0 +1,172 @@
+#include<stdio.h>
+#include<unistd.h>
+#include<stdlib.h>
+#include<malloc.h>
+#include<time.h>
+#include<pthread.h>
+#include<semaphore.h>
+struct Job
+ {
+	int time,Arrival_time,Burst_time,id,flag,completed,p;
+	clock_t arrival;
+	sem_t se;
+	struct Job *next;
+};
+int i=0,k=0;
+typedef struct Job node;
+clock_t start;
+float turnaroundtime=0,waitingtime=0;
+node *pointer1=NULL,*pointer2=NULL,*temp;
+void *processor(node *S) 
+{
+	
+	clock_t count;
+	while(1) {
+		sem_wait(&S->se);
+		if((S->Arrival_time<=(clock()-start)/CLOCKS_PER_SEC && S->p==1))
+		 {
+			S->p=0;
+			count=clock();
+		}
+		if(S->flag==1)
+		 {
+			printf("\nProcess-%d Running \nTimer :%d\n", S->id,  (clock()-start) / CLOCKS_PER_SEC );
+			S->flag=0;
+			S->arrival=clock();
+		}
+		if((clock()-count)/CLOCKS_PER_SEC==1) {
+			count=clock();
+			printf("\nTimer :%d",(clock()-start)/CLOCKS_PER_SEC);
+			S->time-=1;
+			if(S->time==0) {
+				turnaroundtime+=(clock()-start)/CLOCKS_PER_SEC-S->Arrival_time;
+				waitingtime+=((clock()-start)/CLOCKS_PER_SEC)-S->Burst_time-S->Arrival_time;
+				sleep(2);
+				node *start=pointer2;
+				while(start!=NULL) {
+					if(start->next==S) {
+						start->next=S->next;
+						break;
+					}
+					if(pointer2==S) {
+						pointer2=pointer2->next;
+						break;
+					}
+					start=start->next;
+				}
+				printf("\nProcess-%d Completed \n",S->id);
+				if(pointer2!=NULL){
+					printf("next Process-%d",pointer2->id);
+				}
+				S->completed=7;
+				if(pointer2!=NULL){
+					sem_post(&pointer2->se);
+				}
+			}
+			}
+					if(S->completed==7) {
+			break;
+		}
+	sem_post(&S->se);
+	}
+} 
+void sort_burst(node *temp) {	
+	node *start=pointer2;
+	if(pointer2==NULL) {
+		pointer2=temp;
+		pointer2->next=NULL;
+	}
+	else{
+	int t=temp->time;
+	if (start->time > t) {
+        	temp->next = pointer2;
+        	pointer2=temp;
+    	}
+    	else {
+        	while (start->next != NULL && start->next->time< t) {
+            		start = start->next;
+        	}
+        temp->next = start->next;
+        start->next = temp;
+    }
+	}
+}
+void sort_arrival() {
+	temp=(node *)malloc(sizeof(node));
+	printf("\nEnter Arrival Time of %d Process :",(i+1));
+	scanf("%d",&temp->Arrival_time);
+	printf("Enter Burst Time :");
+	scanf("%d",&temp->time);
+	temp->id=i+1;
+	temp->p=1;
+	temp->flag=1;
+	temp->Burst_time=temp->time;
+	sem_init(&temp->se,0,0);
+	int t=temp->Arrival_time;
+	node *start=pointer1;
+	if (start->Arrival_time > t) {
+        	temp->next = pointer1;
+        	pointer1=temp;
+    	}
+    	else {
+        	while (start->next != NULL && start->next->Arrival_time < t) {
+            		start = start->next;
+        	}
+        temp->next = start->next;
+        start->next = temp;
+    }
+}
+void main() {
+	printf("Shortest Job First\n");
+	int n,l=1;
+	pthread_t p[10];
+	printf("\nEnter No.of Processes :");
+	scanf("%d",&n);
+	while(i<n) {
+		if(pointer1==NULL) {
+			pointer1=(node *)malloc(sizeof(node));
+			printf("Enter Arrival Time of %d Process :",(i+1));
+			scanf("%d",&pointer1->Arrival_time);
+			printf("Enter Burst Time :");
+			scanf("%d",&pointer1->time);
+			pointer1->id=i+1;
+			pointer1->flag=1;
+			pointer1->p=1;
+			pointer1->Burst_time=pointer1->time;
+			sem_init(&pointer1->se,0,0);
+			pointer1->next=NULL;
+		}
+		else {
+			sort_arrival();
+		}
+		i++;
+	}
+	i=0;
+	system("cls");
+	printf("\t\tPROCESSOR\n\n");
+	start=clock();
+	while(i<n) {
+		temp=pointer1;	
+		if(temp->Arrival_time<=0) {
+			printf("Process-%d is Dicarded Due to Incorrect Arrival Time\n",temp->id);
+		pointer1=temp->next;
+			temp=pointer1;
+			i++;
+		}
+		if(l==1) {
+				l=0;
+				sem_post(&temp->se);
+			}
+		if((clock()-start)/CLOCKS_PER_SEC==temp->Arrival_time) {
+			printf("Process-%d is created\n",temp->id);
+			pthread_create(&p[i],NULL,processor,temp);
+			pointer1=pointer1->next;
+			sort_burst(temp);
+			i++;
+		}
+	}
+	for(i=0;i<n;i++) {
+		pthread_join(p[i],NULL);
+	}
+	printf("\nAverage Waiting Time :%f\nAverage Turn Around Time :%f",(float)waitingtime/n,(float)turnaroundtime/n);
+}
